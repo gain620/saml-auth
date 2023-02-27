@@ -11,8 +11,17 @@ import (
 	"net/url"
 )
 
-func hello(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "Hello, SAML!")
+// Print SAML request
+func samlRequestMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		//fmt.Printf("%+v\n", r)
+		next.ServeHTTP(w, r)
+	})
+}
+
+// Echo session info
+func echoSession(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprintf(w, "%v\n", samlsp.SessionFromContext(r.Context()))
 }
 
 func main() {
@@ -25,7 +34,7 @@ func main() {
 		panic(err) // TODO handle error
 	}
 
-	idpMetadataURL, err := url.Parse("https://samltest.id/saml/idp")
+	idpMetadataURL, err := url.Parse("http://localhost:8080/realms/gain/protocol/saml/descriptor")
 	if err != nil {
 		panic(err) // TODO handle error
 	}
@@ -47,8 +56,9 @@ func main() {
 		IDPMetadata: idpMetadata,
 	})
 
-	app := http.HandlerFunc(hello)
+	app := http.HandlerFunc(echoSession)
 	http.Handle("/hello", samlSP.RequireAccount(app))
-	http.Handle("/saml/", samlSP)
+
+	http.Handle("/saml/", samlRequestMiddleware(samlSP))
 	http.ListenAndServe(":8000", nil)
 }
